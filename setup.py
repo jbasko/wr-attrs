@@ -22,7 +22,7 @@ setup(
     license='MIT',
     url='https://github.com/jbasko/wr-attrs',
     description='wr-attrs',
-    long_description=read('README.rst'),
+    long_description=read('README.md'),
     packages=['wr_attrs'],
     install_requires=[],
     classifiers=[
