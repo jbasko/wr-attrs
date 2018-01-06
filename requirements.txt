@@ -1,0 +1,16 @@
+#
+# Real dependencies
+#
+
+# ...
+
+#
+# Development only
+#
+bumpversion==0.5.3
+coverage
+flake8
+isort
+pytest
+pytest-random-order
+tox

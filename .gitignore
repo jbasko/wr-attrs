@@ -1,0 +1,10 @@
+*~
+.DS_Store
+.venv
+.python-version
+.idea
+.envrc
+__pycache__
+.cache
+.tox
+*.egg-info
