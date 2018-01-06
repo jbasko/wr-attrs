@@ -8,3 +8,5 @@ __pycache__
 .cache
 .tox
 *.egg-info
+dist
+
