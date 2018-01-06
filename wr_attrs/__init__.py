@@ -228,6 +228,10 @@ class _AttrContainerMeta(type):
 
         return container_cls
 
+    @classmethod
+    def __prepare__(meta, name, bases):
+        return collections.OrderedDict()
+
 
 class AttrContainer(metaclass=_AttrContainerMeta):
     """
