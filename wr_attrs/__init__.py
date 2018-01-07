@@ -1,4 +1,4 @@
-__version__ = '0.1.3'
+__version__ = '0.1.5'
 
 
 import collections
@@ -128,7 +128,7 @@ class _Attrs:
             kwargs = args[0]
         for key in self.names:
             if key in kwargs:
-                self.set(key, kwargs.pop(key))
+                setattr(self.owner, key, kwargs.pop(key))
         if kwargs:
             raise AttributeError(list(kwargs.keys())[0])
 
@@ -230,6 +230,7 @@ class _AttrContainerMeta(type):
 
     @classmethod
     def __prepare__(meta, name, bases):
+        # This is only needed for Python 3.5
         return collections.OrderedDict()
 
 
