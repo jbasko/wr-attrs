@@ -27,9 +27,13 @@ def test_set_get():
     assert (c.x, c.y) == (5, 3)
     assert (d.x, d.y) == (None, 3)
 
+    assert (cx.get(), cy.get()) == (5, 3)
+
     dy.set('hello')
     assert (c.x, c.y) == (5, 3)
     assert (d.x, d.y) == (None, 'hello')
+
+    assert (dx.get(), dy.get()) == (None, 'hello')
 
 
 def test_value_property():
