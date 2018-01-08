@@ -5,12 +5,22 @@ import collections
 import copy
 
 
-class _Nothing:
+class _Falsey:
+    def __init__(self, name):
+        self._name = name
+
     def __bool__(self):
         return False
 
+    def __repr__(self):
+        return '<{}>'.format(self._name)
 
-Nothing = _Nothing()
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and self._name == other._name
+
+
+NotSet = _Falsey('NotSet')
+Required = _Falsey('Required')
 
 
 class Attr:
@@ -22,10 +32,19 @@ class Attr:
 
     ALL_ATTRS = '_all_attrs_'
 
-    def __init__(self, name=None, default=None, fget=None, fset=None, finit=None, doc=None, **options):
+    def __init__(self, name=None, default=NotSet, fget=None, fset=None, finit=None, doc=None, required=False, **options):
         self.name = name
+        self.required = bool(required)
 
-        self.default = default
+        if default is NotSet:
+            if self.required:
+                self.default = Required
+            else:
+                self.default = None
+        else:
+            if self.required:
+                raise ValueError('default= must not be set together with required=True')
+            self.default = default
 
         self.options = options
 
@@ -204,13 +223,18 @@ class _Attrs:
         if isinstance(self.owner, type):
             value = getattr(self.owner, name, default)
         else:
-            if not self.has_value(name) and self[name].finit:
+            attr = self[name]
+
+            if not attr.has_value and attr.required and attr.default is Required:
+                raise ValueError('Required attr {!r} is missing value'.format(name))
+
+            if not self.has_value(name) and attr.finit:
                 # Must call initialiser with the default value.
                 # But first must set value to something so that we don't have
                 # infinite recursion.
-                setattr(self.owner, self[name].storage_name, None)
-                self[name].finit(self.owner, self[name], self[name].default)
-            value = getattr(self.owner, self[name].storage_name, default)
+                setattr(self.owner, attr.storage_name, None)
+                attr.finit(self.owner, attr, attr.default)
+            value = getattr(self.owner, attr.storage_name, default)
 
         return value
 
