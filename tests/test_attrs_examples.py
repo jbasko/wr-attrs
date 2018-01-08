@@ -48,8 +48,9 @@ def test_attrs_collection():
     assert list(b.attrs.names) == ['p', 'q', 'r']
     assert list(b.attrs.values) == [('p', None), ('q', 42), ('r', None)]
 
-    assert b.attrs.q is B.q
-    assert b.attrs['q'] is B.q
+    assert b.attrs.q == b.attrs['q']
+    assert b.attrs.q.name == 'q'
+    assert b.attrs.q.default is None
     assert b.attrs.get('q') == 42
 
 

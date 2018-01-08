@@ -49,3 +49,23 @@ def test_setter_is_used_to_initialise_attr():
     a.attrs.update(x=2, y=2)
     assert a.x == 2
     assert a.y == 10
+
+
+def test_getter():
+    class A(AttrContainer):
+        x = Attr()
+
+        @x.getter
+        def x(self):
+            value = self.attrs.get('x')
+            if value is None:
+                return None
+            else:
+                return value * 5
+
+    a = A()
+    assert a.x is None
+
+    a.x = 5
+    assert a.x == 25
+    assert a.x == 25

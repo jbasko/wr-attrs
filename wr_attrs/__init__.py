@@ -1,4 +1,4 @@
-__version__ = '0.1.5'
+__version__ = '0.2.0'
 
 
 import collections
@@ -14,7 +14,7 @@ class Attr:
 
     ALL_ATTRS = '_all_attrs_'
 
-    def __init__(self, name=None, default=None, fget=None, fset=None, doc=None, **options):
+    def __init__(self, name=None, default=None, fget=None, fset=None, finit=None, doc=None, **options):
         self.name = name
 
         self.default = default
@@ -25,6 +25,7 @@ class Attr:
 
         self.fget = fget
         self.fset = fset
+        self.finit = finit
         if doc is None and fget is not None:
             doc = fget.__doc__
         self.__doc__ = doc
@@ -80,6 +81,22 @@ class Attr:
         # the descriptor itself.
         return self
 
+    def init(self, finit):
+        """
+        Decorator to register an initialiser of Attr.
+        The method must have the same name as the Attr.
+
+        Initialiser is called only once for each pair of (AttrContainer instance, Attr).
+        It is called the first time attribute value is being set or is being read.
+        """
+
+        self.finit = finit
+        assert self.name is None or finit.__name__ == self.name
+
+        # Must return self so that in class dictionary the setter function doesn't overwrite
+        # the descriptor itself.
+        return self
+
     def __copy__(self):
         return self.__class__(
             name=self.name,
@@ -87,8 +104,37 @@ class Attr:
             options=dict(self.options),
             fset=self.fset,
             fget=self.fget,
+            finit=self.finit,
             doc=self.__doc__,
         )
+
+
+class BoundAttr:
+    """
+    An attribute that is bound to an instance of AttrContainer.
+    """
+
+    def __init__(self, owner, attr: Attr):
+        self._owner_ = owner
+        self._attr_ = attr
+
+    def __getattr__(self, name):
+        return getattr(self._attr_, name)
+
+    def __setattr__(self, name, value):
+        if name in ('_owner_', '_attr_'):
+            super().__setattr__(name, value)
+        else:
+            setattr(self._attr_, name, value)
+
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+    def set(self, value):
+        return self._owner_.attrs.set(self.name, value)
+
+    def get(self, default=None):
+        return self._owner_.attrs.get(self.name, default=default)
 
 
 class _Attrs:
@@ -109,7 +155,14 @@ class _Attrs:
         if isinstance(self.owner, type):
             setattr(self.owner, name, value)
         else:
-            setattr(self.owner, self[name].storage_name, value)
+            if not self.has_value(name) and self[name].finit:
+                # Must call initialiser with the value being set.
+                # But first must set value to something so that we don't have
+                # infinite recursion.
+                setattr(self.owner, self[name].storage_name, None)
+                self[name].finit(self.owner, self[name], value)
+            else:
+                setattr(self.owner, self[name].storage_name, value)
 
     def get(self, name, default=None):
         """
@@ -119,7 +172,19 @@ class _Attrs:
         if isinstance(self.owner, type):
             return getattr(self.owner, name)
         else:
+            if not self.has_value(name) and self[name].finit:
+                # Must call initialiser with the default value.
+                # But first must set value to something so that we don't have
+                # infinite recursion.
+                setattr(self.owner, self[name].storage_name, None)
+                self[name].finit(self.owner, self[name], self[name].default)
             return getattr(self.owner, self[name].storage_name, default)
+
+    def has_value(self, name):
+        if isinstance(self.owner, type):
+            raise NotImplementedError()
+        else:
+            return hasattr(self.owner, self[name].storage_name)
 
     def update(self, *args, **kwargs):
         if args:
@@ -152,12 +217,12 @@ class _Attrs:
 
     def __getattr__(self, name):
         try:
-            return self.collection[name]
+            return BoundAttr(self.owner, self.collection[name])
         except KeyError:
             raise AttributeError(name)
 
     def __getitem__(self, name):
-        return self.collection[name]
+        return BoundAttr(self.owner, self.collection[name])
 
     def __contains__(self, name):
         return name in self.collection
