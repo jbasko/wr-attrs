@@ -1,24 +1,60 @@
 from wr_attrs import Attr, AttrContainer, BoundAttr
 
 
-def test_container_attrs_returns_bound_attr():
-    class C(AttrContainer):
-        x = Attr()
-        y = Attr()
+class C(AttrContainer):
+    x = Attr()
+    y = Attr()
 
-    a = C()
-    b = C()
 
-    assert isinstance(a.attrs.x, BoundAttr)
-    assert a.attrs.x._owner_ is a
+def test_container_attrs_provides_bound_attrs():
+    c = C(y=2)
 
-    assert isinstance(b.attrs.x, BoundAttr)
-    assert b.attrs.x._owner_ is b
+    cx = c.attrs.x
+    cy = c.attrs.y
 
-    a.attrs.x.set('hello')
-    assert a.x == 'hello'
-    assert b.x is None
+    assert isinstance(cx, BoundAttr)
+    assert isinstance(cy, BoundAttr)
 
-    b.attrs.x.set('world')
-    assert b.x == 'world'
-    assert a.x == 'hello'
+
+def test_set_get():
+    c = C(y=3)
+    d = C(y=3)
+
+    cx, cy = c.attrs.x, c.attrs.y
+    dx, dy = d.attrs.x, d.attrs.y
+
+    cx.set(5)
+    assert (c.x, c.y) == (5, 3)
+    assert (d.x, d.y) == (None, 3)
+
+    dy.set('hello')
+    assert (c.x, c.y) == (5, 3)
+    assert (d.x, d.y) == (None, 'hello')
+
+
+def test_value_property():
+    c = C()
+
+    cx = c.attrs.x
+    assert cx.value is None
+    assert c.x is None
+
+    cx.value = 5
+    assert c.x == 5
+    assert cx.value == 5
+
+
+def test_has_value_property():
+    c = C()
+
+    d = C(x=2)
+
+    e = C()
+    e.x = None
+
+    f = C(x=None)
+
+    assert not c.attrs.x.has_value
+    assert d.attrs.x.has_value
+    assert e.attrs.x.has_value
+    assert f.attrs.x.has_value

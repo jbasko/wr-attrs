@@ -5,6 +5,14 @@ import collections
 import copy
 
 
+class _Nothing:
+    def __bool__(self):
+        return False
+
+
+Nothing = _Nothing()
+
+
 class Attr:
     """
     Descriptor to declare rich attributes in classes that inherit AttrContainer.
@@ -114,7 +122,7 @@ class BoundAttr:
     An attribute that is bound to an instance of AttrContainer.
     """
 
-    def __init__(self, owner, attr: Attr):
+    def __init__(self, owner: 'AttrContainer', attr: Attr):
         self._owner_ = owner
         self._attr_ = attr
 
@@ -122,7 +130,7 @@ class BoundAttr:
         return getattr(self._attr_, name)
 
     def __setattr__(self, name, value):
-        if name in ('_owner_', '_attr_'):
+        if name in ('_owner_', '_attr_', 'value', 'attrs', 'has_value'):
             super().__setattr__(name, value)
         else:
             setattr(self._attr_, name, value)
@@ -130,11 +138,35 @@ class BoundAttr:
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
 
+    @property
+    def attrs(self) -> '_Attrs':
+        return self._owner_.attrs
+
+    @attrs.setter
+    def attrs(self, new):
+        raise AttributeError('attrs is read-only')
+
+    @property
+    def value(self):
+        return self.attrs.get(self.name)
+
+    @value.setter
+    def value(self, new):
+        self.attrs.set(self.name, new)
+
     def set(self, value):
-        return self._owner_.attrs.set(self.name, value)
+        return self.attrs.set(self.name, value)
 
     def get(self, default=None):
-        return self._owner_.attrs.get(self.name, default=default)
+        return self.attrs.get(self.name, default=default)
+
+    @property
+    def has_value(self):
+        return self.attrs.has_value(self.name)
+
+    @has_value.setter
+    def has_value(self, new):
+        raise AttributeError('has_value is ready-only')
 
 
 class _Attrs:
@@ -170,7 +202,7 @@ class _Attrs:
         value from instance dictionary.
         """
         if isinstance(self.owner, type):
-            return getattr(self.owner, name)
+            value = getattr(self.owner, name, default)
         else:
             if not self.has_value(name) and self[name].finit:
                 # Must call initialiser with the default value.
@@ -178,7 +210,13 @@ class _Attrs:
                 # infinite recursion.
                 setattr(self.owner, self[name].storage_name, None)
                 self[name].finit(self.owner, self[name], self[name].default)
-            return getattr(self.owner, self[name].storage_name, default)
+            value = getattr(self.owner, self[name].storage_name, default)
+
+        return value
+
+        # TODO Enable this
+        # if value is Nothing:
+        #    raise AttributeError(name)
 
     def has_value(self, name):
         if isinstance(self.owner, type):

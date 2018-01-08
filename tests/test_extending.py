@@ -57,6 +57,8 @@ def test_getter():
 
         @x.getter
         def x(self):
+            # TODO allow requesting attr (BoundAttr) in signature
+            # TODO so that you can then return attr.value * 5 if attr.value else None
             value = self.attrs.get('x')
             if value is None:
                 return None
