@@ -58,6 +58,25 @@ Required = _Falsey('Required')
 TempValue = _Falsey('TempValue')
 
 
+class AttrsInternals:
+    """
+    Helper methods to inspect internals of Attrs instances
+    until we work out the best interface.
+    """
+
+    _ALL_NAMES_ = '_attrs_all_names_'
+
+    @classmethod
+    def get_names(cls, container_cls: type) -> [str]:
+        if not getattr(container_cls, cls._ALL_NAMES_):
+            setattr(container_cls, cls._ALL_NAMES_, [])
+        return getattr(container_cls, cls._ALL_NAMES_)
+
+    @classmethod
+    def set_names(cls, container_cls: type, names):
+        setattr(container_cls, cls._ALL_NAMES_, names)
+
+
 class Attr:
     def __init__(self, name=None, default=NotSet, required=False, get_value=None, set_value=None, init_value=None, **options):
         self.name = name  # type: str
@@ -223,10 +242,15 @@ class Attrs:
         else:
             raise AttributeError('Attribute {!r} is read-only'.format(name))
 
+    def __iter__(self):
+        yield from AttrsInternals.get_names(self.owner.__class__)
+
 
 class ContainerMeta(type):
     def __new__(meta, name, bases, dct):
         base_attrs = collections.OrderedDict()
+
+        all_attrs_names = []
 
         for base in bases[0].__mro__ if bases else ():
             for k, v in base.__dict__.items():
@@ -234,16 +258,22 @@ class ContainerMeta(type):
                     base_attrs[k] = v
                     if v.name is None:
                         v.name = k
+                    if v.name not in all_attrs_names:
+                        all_attrs_names.append(v.name)
 
         for k, v in list(dct.items()):
             if isinstance(v, Attr):
                 if v.name is None:
                     v.name = k
+                if v.name not in all_attrs_names:
+                    all_attrs_names.append(v.name)
             elif k in base_attrs:
                 dct[k] = copy(base_attrs[k])
                 dct[k].default = v
 
-        return super().__new__(meta, name, bases, dct)
+        container_cls = super().__new__(meta, name, bases, dct)
+        AttrsInternals.set_names(container_cls, all_attrs_names)
+        return container_cls
 
 
 class ContainerBase(metaclass=ContainerMeta):

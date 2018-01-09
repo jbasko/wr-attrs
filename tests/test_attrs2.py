@@ -2,7 +2,7 @@ from copy import copy
 
 import pytest
 
-from wr_attrs.attrs2 import Attr, Attrs, BoundAttr, container
+from wr_attrs.attrs2 import Attr, Attrs, AttrsInternals, BoundAttr, container
 
 
 def test_basics():
@@ -187,6 +187,27 @@ def test_initialiser():
     assert c.x is None
 
 
+def test_derived_class_initialiser():
+    @container
+    class C:
+        x = Attr()
+
+    class D(C):
+        y = Attr()
+
+    class E(D):
+        z = Attr()
+
+    c = C(x=1)
+    assert c.x == 1
+
+    d = D(x=1, y=2)
+    assert (d.x, d.y) == (1, 2)
+
+    e = E(x=1, y=2, z=3)
+    assert (e.x, e.y, e.z) == (1, 2, 3)
+
+
 def test_initialiser_with_init_value():
     @container
     class C:
@@ -230,3 +251,33 @@ def test_override_attrs_cls_and_bound_attr_cls():
     c = C()
     assert isinstance(c.attrs, CustomAttrs)
     assert isinstance(c.attrs.x, CustomBoundAttr)
+
+
+def test_attrs_container_stores_list_of_all_names():
+    @container
+    class C:
+        x = Attr()
+        y = Attr()
+
+    c = C()
+    assert AttrsInternals.get_names(c) == ['x', 'y']
+
+    class D(C):
+        z = Attr()
+        x = 5
+
+    d = D(y=3)
+    assert AttrsInternals.get_names(d) == ['x', 'y', 'z']
+
+
+def test_attrs_is_an_iterator_over_all_names():
+    @container
+    class C:
+        x = Attr()
+        y = Attr()
+
+    class D(C):
+        z = Attr()
+
+    d = D()
+    assert list(d.attrs) == ['x', 'y', 'z']
