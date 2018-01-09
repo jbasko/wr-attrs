@@ -5,7 +5,7 @@ import pytest
 from wr_attrs.attrs2 import Attr, Attrs, BoundAttr, container
 
 
-def test_attrs2():
+def test_basics():
     @container
     class C:
         x = Attr('x')
@@ -34,7 +34,7 @@ def test_attrs2():
         _ = c.z  # noqa
 
 
-def test_attrs2_init_value_decorator():
+def test_init_value_decorator():
     @container
     class C:
         @Attr.init_value
@@ -57,7 +57,7 @@ def test_attrs2_init_value_decorator():
     assert c.y == 20
 
 
-def test_attrs2_get_value_decorator():
+def test_get_value_decorator():
     @container
     class C:
         @Attr.get_value
@@ -81,7 +81,7 @@ def test_attrs2_get_value_decorator():
     assert c.y == 20
 
 
-def test_attrs2_set_value_decorator():
+def test_set_value_decorator():
     @container
     class C:
         @Attr.set_value
@@ -104,7 +104,7 @@ def test_attrs2_set_value_decorator():
     assert c.y == 10
 
 
-def test_attrs2_container_decorator():
+def test_container_decorator():
     @container
     class C:
         x = Attr()
@@ -119,7 +119,7 @@ def test_attrs2_container_decorator():
         _ = c.attrs.z  # noqa
 
 
-def test_attrs2_inheritance():
+def test_inheritance():
     @container
     class C:
         x = Attr()
@@ -135,7 +135,7 @@ def test_attrs2_inheritance():
     assert (d.x, d.y, d.z) == (None, None, None)
 
 
-def test_attrs2_setting_attr_in_inherited_class_sets_default():
+def test_setting_attr_in_inherited_class_sets_default():
     @container
     class C:
         x = Attr()
@@ -155,7 +155,7 @@ def test_attrs2_setting_attr_in_inherited_class_sets_default():
     assert c.x is None
 
 
-def test_attrs2_customising_inherited_attribute():
+def test_customising_inherited_attribute():
     @container
     class C:
         x = Attr()
@@ -176,7 +176,7 @@ def test_attrs2_customising_inherited_attribute():
     assert c.x == 5
 
 
-def test_attrs2_initialiser():
+def test_initialiser():
     @container
     class C:
         x = Attr()
@@ -187,7 +187,7 @@ def test_attrs2_initialiser():
     assert c.x is None
 
 
-def test_attrs2_initialiser_with_init_value():
+def test_initialiser_with_init_value():
     @container
     class C:
         x = Attr()
@@ -213,7 +213,7 @@ def test_attrs2_initialiser_with_init_value():
     assert c.y == 'hello'
 
 
-def test_attrs2_override_attrs_cls_and_bound_attr_cls():
+def test_override_attrs_cls_and_bound_attr_cls():
     class CustomBoundAttr(BoundAttr):
         pass
 
