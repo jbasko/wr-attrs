@@ -2,7 +2,7 @@ from copy import copy
 
 import pytest
 
-from wr_attrs.attrs2 import Attr, Attrs, AttrsInternals, BoundAttr, container
+from wr_attrs import Attr, Attrs, BoundAttr, container
 
 
 def test_basics():
@@ -262,7 +262,7 @@ def test_attrs_container_stores_list_of_all_names():
         y = Attr()
 
     c = C()
-    names = AttrsInternals.get_names(c)
+    names = Attrs.get_names(c)
     assert isinstance(names, list)
 
     assert set(names) == {'x', 'y'}
@@ -273,7 +273,7 @@ def test_attrs_container_stores_list_of_all_names():
         b = Attr()
 
     d = D(y=3)
-    assert set(AttrsInternals.get_names(d)) == {'x', 'y', 'a', 'b'}
+    assert set(Attrs.get_names(d)) == {'x', 'y', 'a', 'b'}
 
 
 def test_attrs_is_an_iterator_over_all_names():
