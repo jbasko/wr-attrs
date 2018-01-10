@@ -254,25 +254,32 @@ def test_override_attrs_cls_and_bound_attr_cls():
 
 
 def test_attrs_container_stores_list_of_all_names():
+    # In Python 3.5 there we cannot control the __dict__ creation of C class
+    # with __prepare__ so we cannot guarantee the order of attrs.
     @container
     class C:
         x = Attr()
         y = Attr()
 
     c = C()
-    assert AttrsInternals.get_names(c) == ['x', 'y']
+    names = AttrsInternals.get_names(c)
+    assert isinstance(names, list)
+
+    assert set(names) == {'x', 'y'}
 
     class D(C):
-        z = Attr()
+        a = Attr()
         x = 5
+        b = Attr()
 
     d = D(y=3)
-    assert AttrsInternals.get_names(d) == ['x', 'y', 'z']
+    assert set(AttrsInternals.get_names(d)) == {'x', 'y', 'a', 'b'}
 
 
 def test_attrs_is_an_iterator_over_all_names():
     @container
     class C:
+        w = Attr()
         x = Attr()
         y = Attr()
 
@@ -280,4 +287,4 @@ def test_attrs_is_an_iterator_over_all_names():
         z = Attr()
 
     d = D()
-    assert list(d.attrs) == ['x', 'y', 'z']
+    assert set(d.attrs) == {'w', 'x', 'y', 'z'}
