@@ -11,6 +11,10 @@ import collections
 import inspect
 from copy import copy
 
+ATTRS_FOR_CONTAINER_CLS = '_attrs_for_cls_'
+ATTRS_FOR_CONTAINER_INSTANCE = '_attrs_'
+ATTRS_ALL_NAMES = '_attrs_all_names_'
+
 
 def invoke_with_extras(func, **extras):
     """
@@ -19,7 +23,7 @@ def invoke_with_extras(func, **extras):
     signature = inspect.signature(func)  # type: inspect.Signature
 
     bound_args = signature.bind(
-        **{k: v for k, v in extras.items() if k in signature.parameters}
+        **{k: extras.pop(k) for k in list(extras.keys()) if k in signature.parameters}
     )  # type: inspect.BoundArguments
     return func(*bound_args.args, *bound_args.kwargs)
 
@@ -181,20 +185,26 @@ class BoundAttr:
             setattr(self.owner, self.storage_name, value)
 
 
+class _AttrsNamesProperty:
+    def __get__(self, instance, owner):
+        if instance is None:
+            if not hasattr(owner, ATTRS_ALL_NAMES):
+                setattr(owner, ATTRS_ALL_NAMES, [])
+            return getattr(owner, ATTRS_ALL_NAMES)
+        else:
+            if isinstance(instance.owner, type):
+                return getattr(instance.owner, ATTRS_ALL_NAMES)
+            else:
+                return getattr(instance.owner.__class__, ATTRS_ALL_NAMES)
+
+    def __set__(self, instance, value):
+        raise NotImplementedError()
+
+
 class Attrs:
     _internals_ = ('owner', 'bound_attrs')
 
-    _ALL_NAMES_ = '_attrs_all_names_'
-
-    @classmethod
-    def get_names(cls, container_cls: type) -> [str]:
-        if not getattr(container_cls, cls._ALL_NAMES_):
-            setattr(container_cls, cls._ALL_NAMES_, [])
-        return getattr(container_cls, cls._ALL_NAMES_)
-
-    @classmethod
-    def set_names(cls, container_cls: type, names):
-        setattr(container_cls, cls._ALL_NAMES_, names)
+    _names_ = _AttrsNamesProperty()
 
     def __init__(self, owner):
         self.owner = owner
@@ -236,14 +246,14 @@ class Attrs:
             raise AttributeError('Attribute {!r} is read-only'.format(name))
 
     def __iter__(self):
-        yield from self.get_names(self.owner.__class__)
+        yield from self._names_
 
 
 class ContainerMeta(type):
     def __new__(meta, name, bases, dct):
         base_attrs = collections.OrderedDict()
 
-        all_attrs_names = []
+        attrs_all_names = []
 
         for base in bases[0].__mro__ if bases else ():
             for k, v in base.__dict__.items():
@@ -251,39 +261,52 @@ class ContainerMeta(type):
                     base_attrs[k] = v
                     if v.name is None:
                         v.name = k
-                    if v.name not in all_attrs_names:
-                        all_attrs_names.append(v.name)
+                    if v.name not in attrs_all_names:
+                        attrs_all_names.append(v.name)
 
         for k, v in list(dct.items()):
             if isinstance(v, Attr):
                 if v.name is None:
                     v.name = k
-                if v.name not in all_attrs_names:
-                    all_attrs_names.append(v.name)
+                if v.name not in attrs_all_names:
+                    attrs_all_names.append(v.name)
             elif k in base_attrs:
                 dct[k] = copy(base_attrs[k])
                 dct[k].default = v
 
+        dct[ATTRS_ALL_NAMES] = attrs_all_names
+
         container_cls = super().__new__(meta, name, bases, dct)
-        Attrs.set_names(container_cls, all_attrs_names)
+
         return container_cls
+
+
+class _AttrsProperty:
+    def __get__(self, instance, owner):
+        if instance is None:
+            if not hasattr(owner, ATTRS_FOR_CONTAINER_CLS):
+                setattr(owner, ATTRS_FOR_CONTAINER_CLS, owner.attrs_cls(owner))
+            return getattr(owner, ATTRS_FOR_CONTAINER_CLS)
+        else:
+            if not hasattr(instance, ATTRS_FOR_CONTAINER_INSTANCE):
+                setattr(instance, ATTRS_FOR_CONTAINER_INSTANCE, instance.attrs_cls(instance))
+            return getattr(instance, ATTRS_FOR_CONTAINER_INSTANCE)
+
+    def __set__(self, instance, value):
+        raise AttributeError('_AttrsProperty is read-only')
 
 
 class ContainerBase(metaclass=ContainerMeta):
     attrs_cls = Attrs
     bound_attr_cls = BoundAttr
 
+    attrs = _AttrsProperty()
+
     def __init__(self, *args, **kwargs):
         for k in list(kwargs.keys()):
             if k in self.attrs:
                 self.attrs[k].value = kwargs.pop(k)
         super().__init__(*args, **kwargs)
-
-    @property
-    def attrs(self):
-        if not hasattr(self, '_attrs_'):
-            setattr(self, '_attrs_', self.attrs_cls(self))
-        return getattr(self, '_attrs_')
 
 
 def container(container_cls):

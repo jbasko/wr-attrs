@@ -253,6 +253,33 @@ def test_override_attrs_cls_and_bound_attr_cls():
     assert isinstance(c.attrs.x, CustomBoundAttr)
 
 
+def test_container_class_attrs_is_attrs_of_container_class():
+    @container
+    class C:
+        pass
+
+    class CustomAttrs(Attrs):
+        pass
+
+    @container
+    class D:
+        attrs_cls = CustomAttrs
+
+    assert isinstance(C.attrs, Attrs)
+    assert not isinstance(C.attrs, CustomAttrs)
+
+    assert isinstance(D.attrs, CustomAttrs)
+
+
+def test_attrs_names():
+    @container
+    class C:
+        x = Attr()
+
+    assert C.attrs._names_ == ['x']
+    assert C().attrs._names_ == ['x']
+
+
 def test_attrs_container_stores_list_of_all_names():
     # In Python 3.5 there we cannot control the __dict__ creation of C class
     # with __prepare__ so we cannot guarantee the order of attrs.
@@ -262,7 +289,7 @@ def test_attrs_container_stores_list_of_all_names():
         y = Attr()
 
     c = C()
-    names = Attrs.get_names(c)
+    names = c.attrs._names_
     assert isinstance(names, list)
 
     assert set(names) == {'x', 'y'}
@@ -273,7 +300,7 @@ def test_attrs_container_stores_list_of_all_names():
         b = Attr()
 
     d = D(y=3)
-    assert set(Attrs.get_names(d)) == {'x', 'y', 'a', 'b'}
+    assert set(d.attrs._names_) == {'x', 'y', 'a', 'b'}
 
 
 def test_attrs_is_an_iterator_over_all_names():
