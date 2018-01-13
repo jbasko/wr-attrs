@@ -315,3 +315,35 @@ def test_attrs_is_an_iterator_over_all_names():
 
     d = D()
     assert set(d.attrs) == {'w', 'x', 'y', 'z'}
+
+
+def test_attr_cls_is_a_decorator_for_getter():
+    @container
+    class C:
+        @Attr
+        def x(self, attr):
+            return attr.value * 2
+
+    c = C(x=5)
+    assert c.x == 10
+
+    c.x = 15
+    assert c.x == 30
+
+
+def test_attr_with_options_still_is_a_decorator_for_getter():
+    @container
+    class C:
+        @Attr(default=10)
+        def x(self, attr: BoundAttr):
+            if attr.has_value_initialised:
+                return attr.value * 5
+            else:
+                return attr.default
+
+    c = C()
+    assert c.attrs.x.default == 10
+    assert c.x == 10
+
+    c.x = 20
+    assert c.x == 100

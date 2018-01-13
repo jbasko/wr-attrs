@@ -63,7 +63,25 @@ TempValue = _Falsey('TempValue')
 
 
 class Attr:
-    def __init__(self, name=None, default=NotSet, required=False, get_value=None, set_value=None, init_value=None, **options):
+    def __init__(
+            self, *args,
+            name=None, default=NotSet, required=False,
+            get_value=None, set_value=None, init_value=None,
+            **options
+    ):
+        if args:
+            assert len(args) == 1
+            if isinstance(args[0], str):
+                assert name is None
+                name = args[0]
+            elif callable(args[0]):
+                # This allows using "@Attr" as a decorator for Attr.get_value method,
+                # just like "@property" by default is for getter.
+                assert get_value is None
+                get_value = args[0]
+            else:
+                raise TypeError('Unrecognised args: {}'.format(args))
+
         self.name = name  # type: str
 
         self.required = bool(required)
@@ -105,6 +123,10 @@ class Attr:
 
     def __repr__(self):
         return '<{} {!r}>'.format(self.__class__.__name__, self.name)
+
+    def __call__(self, get_value_method):
+        self._f_get_value = get_value_method
+        return self
 
     def init_value(*args):
         return process_fattr_decorator('init_value', args)
