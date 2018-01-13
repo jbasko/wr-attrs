@@ -137,6 +137,13 @@ class Attr:
     def set_value(*args):
         return process_fattr_decorator('set_value', args)
 
+    def __getattr__(self, name):
+        if name == 'options':  # avoid recursion due to copying
+            raise AttributeError('options')
+        if name in self.options:
+            return self.options[name]
+        raise AttributeError(name)
+
 
 class BoundAttr:
     # Internals are attributes which are not delegated to (owner, attr)
@@ -223,10 +230,32 @@ class _AttrsNamesProperty:
         raise NotImplementedError()
 
 
+class _AttrsAllProperty:
+    def __get__(self, instance, owner):
+        if instance is None:
+            instance = owner
+        return (getattr(instance, name) for name in instance._names_)
+
+
+class _AttrsTaggedProperty:
+    def __get__(self, instance, owner):
+        if instance is None:
+            instance = owner
+
+        def get_attrs_by_tags(*tags):
+            for attr in instance._all_:
+                if all(getattr(attr, tag, None) for tag in tags):
+                    yield attr
+
+        return get_attrs_by_tags
+
+
 class Attrs:
     _internals_ = ('owner', 'bound_attrs')
 
     _names_ = _AttrsNamesProperty()
+    _all_ = _AttrsAllProperty()
+    _tagged_ = _AttrsTaggedProperty()
 
     def __init__(self, owner):
         self.owner = owner
@@ -249,10 +278,21 @@ class Attrs:
 
     def __getitem__(self, name):
         if name not in self.bound_attrs:
-            attr = getattr(self.owner.__class__, name)
+
+            # We are looking for attribute that is a descriptor of class Attr.
+            # This means we must NOT check instance attribute value, but instead
+            # check class attribute which will be the descriptor itself.
+            if isinstance(self.owner, type):
+                attr = getattr(self.owner, name)
+            else:
+                attr = getattr(self.owner.__class__, name)
+
+            # If it's not ours then it shouldn't be accessed via attrs.
             if not isinstance(attr, Attr):
                 raise AttributeError('{}.{} is not an Attr'.format(self.owner.__class__.__name__, name))
+
             self.bound_attrs[name] = self.owner.bound_attr_cls(self.owner, attr)
+
         return self.bound_attrs[name]
 
     def __setitem__(self, name, value):
@@ -306,7 +346,10 @@ class ContainerMeta(type):
 class _AttrsProperty:
     def __get__(self, instance, owner):
         if instance is None:
-            if not hasattr(owner, ATTRS_FOR_CONTAINER_CLS):
+            # Must check against __dict__ because the attribute may have been set
+            # against parent class and we would fail to initialise the class-specific
+            # attribute list.
+            if ATTRS_FOR_CONTAINER_CLS not in owner.__dict__:
                 setattr(owner, ATTRS_FOR_CONTAINER_CLS, owner.attrs_cls(owner))
             return getattr(owner, ATTRS_FOR_CONTAINER_CLS)
         else:

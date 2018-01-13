@@ -262,13 +262,50 @@ def test_container_class_attrs_is_attrs_of_container_class():
         pass
 
     @container
-    class D:
+    class D(C):
         attrs_cls = CustomAttrs
 
     assert isinstance(C.attrs, Attrs)
     assert not isinstance(C.attrs, CustomAttrs)
 
     assert isinstance(D.attrs, CustomAttrs)
+    assert D.attrs.owner is D
+
+
+def test_attrs_owner_is_correct():
+    @container
+    class C:
+        pass
+
+    @container
+    class C2(C):
+        pass
+
+    class D(C):
+        pass
+
+    class E(D):
+        pass
+
+    assert C.attrs.owner is C
+    assert C2.attrs.owner is C2
+    assert D.attrs.owner is D
+    assert E.attrs.owner is E
+
+    c = C()
+    c2 = C2()
+    d = D()
+    e = E()
+
+    assert C.attrs.owner is C
+    assert C2.attrs.owner is C2
+    assert D.attrs.owner is D
+    assert E.attrs.owner is E
+
+    assert c.attrs.owner is c
+    assert c2.attrs.owner is c2
+    assert d.attrs.owner is d
+    assert e.attrs.owner is e
 
 
 def test_attrs_names():
@@ -347,3 +384,40 @@ def test_attr_with_options_still_is_a_decorator_for_getter():
 
     c.x = 20
     assert c.x == 100
+
+
+def test_attrs_all():
+    @container
+    class C:
+        x = Attr()
+
+        @Attr
+        def y(self, attr):
+            return attr.value
+
+    class D(C):
+        @Attr.init_value
+        def z(self, attr, value):
+            attr.value = value
+
+    assert set(C.attrs._all_) == {C.attrs.x, C.attrs.y}
+    assert set(D.attrs._all_) == {D.attrs.x, D.attrs.y, D.attrs.z}
+
+
+def test_attrs_tagged():
+    @container
+    class C:
+        x = Attr(safe=True, cli=True)
+        y = Attr(cli='y')
+
+    assert set(C.attrs._names_) == {'x', 'y'}
+    assert C.attrs.owner is C
+
+    assert set(C.attrs._tagged_('safe')) == {C.attrs.x}
+    assert set(C.attrs._tagged_('cli')) == {C.attrs.x, C.attrs.y}
+
+    c = C()
+    assert c.attrs.owner is c
+    assert set(c.attrs._tagged_('safe')) == {c.attrs.x}
+    assert set(c.attrs._tagged_('cli')) == {c.attrs.x, c.attrs.y}
+    assert set(c.attrs._tagged_('safe', 'cli')) == {c.attrs.x}
