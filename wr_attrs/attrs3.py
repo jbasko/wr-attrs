@@ -25,7 +25,7 @@ def invoke_with_extras(func, **extras):
     bound_args = signature.bind(
         **{k: extras.pop(k) for k in list(extras.keys()) if k in signature.parameters}
     )  # type: inspect.BoundArguments
-    return func(*bound_args.args, *bound_args.kwargs)
+    return func(*bound_args.args, **bound_args.kwargs)
 
 
 def process_fattr_decorator(decorator_name, args):
@@ -191,7 +191,7 @@ class BoundAttr:
     def value(self):
         # Do not override this logic. Add features in Attrs.get
         if isinstance(self.owner, type):
-            return getattr(self.owner, self.attr.name)
+            raise TypeError('Attr has value only when bound to a container instance, not container class')
         else:
             if not self.has_value_initialised:
                 self.init_value()
@@ -230,48 +230,8 @@ class BoundAttr:
             setattr(self.owner, self.storage_name, value)
 
 
-class _AttrsNamesProperty:
-    def __get__(self, instance, owner):
-        if instance is None:
-            if not hasattr(owner, ATTRS_ALL_NAMES):
-                setattr(owner, ATTRS_ALL_NAMES, [])
-            return getattr(owner, ATTRS_ALL_NAMES)
-        else:
-            if isinstance(instance.owner, type):
-                return getattr(instance.owner, ATTRS_ALL_NAMES)
-            else:
-                return getattr(instance.owner.__class__, ATTRS_ALL_NAMES)
-
-    def __set__(self, instance, value):
-        raise NotImplementedError()
-
-
-class _AttrsAllProperty:
-    def __get__(self, instance, owner):
-        if instance is None:
-            instance = owner
-        return (getattr(instance, name) for name in instance._names_)
-
-
-class _AttrsTaggedProperty:
-    def __get__(self, instance, owner):
-        if instance is None:
-            instance = owner
-
-        def get_attrs_by_tags(*tags):
-            for attr in instance._all_:
-                if all(getattr(attr, tag, None) for tag in tags):
-                    yield attr
-
-        return get_attrs_by_tags
-
-
 class Attrs:
     _internals_ = ('owner', 'bound_attrs')
-
-    _names_ = _AttrsNamesProperty()
-    _all_ = _AttrsAllProperty()
-    _tagged_ = _AttrsTaggedProperty()
 
     def __init__(self, owner):
         self.owner = owner
@@ -289,11 +249,27 @@ class Attrs:
         attr = self[attr_name]
         attr.value = new
 
+    @property
+    def _names_(self):
+        if isinstance(self.owner, type):
+            return getattr(self.owner, ATTRS_ALL_NAMES)
+        else:
+            return getattr(self.owner.__class__, ATTRS_ALL_NAMES)
+
+    @property
+    def _all_(self):
+        return (getattr(self, name) for name in self._names_)
+
+    def _tagged_(self, *tags):
+        for attr in self._all_:
+            if all(getattr(attr, tag, None) for tag in tags):
+                yield attr
+
     def _update_(self, *args, **kwargs):
         if args:
             assert len(args) == 1
             assert isinstance(args[0], dict)
-            return self._update_(*args[0])
+            return self._update_(**args[0])
 
         for k, v in kwargs.items():
             self.set(k, v)
@@ -314,14 +290,14 @@ class Attrs:
 
             # If it's not ours then it shouldn't be accessed via attrs.
             if not isinstance(attr, Attr):
-                raise AttributeError('{}.{} is not an Attr'.format(self.owner.__class__.__name__, name))
+                if isinstance(self.owner, type):
+                    raise AttributeError('{}.{} is not an Attr'.format(self.owner.__name__, name))
+                else:
+                    raise AttributeError('{}.{} is not an Attr'.format(self.owner.__class__.__name__, name))
 
             self.bound_attrs[name] = self.owner.bound_attr_cls(self.owner, attr)
 
         return self.bound_attrs[name]
-
-    def __setitem__(self, name, value):
-        raise KeyError('Key {!r} is read-only'.format(name))
 
     def __getattr__(self, name):
         return self[name]
@@ -383,7 +359,7 @@ class _AttrsProperty:
             return getattr(instance, ATTRS_FOR_CONTAINER_INSTANCE)
 
     def __set__(self, instance, value):
-        raise AttributeError('_AttrsProperty is read-only')
+        raise AttributeError('{}.attrs is read-only'.format(instance.__class__.__name__))
 
 
 class ContainerBase(metaclass=ContainerMeta):
