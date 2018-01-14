@@ -63,6 +63,10 @@ TempValue = _Falsey('TempValue')
 
 
 class Attr:
+    _internals_ = (
+        'name', 'required', 'default', '_f_get_value', '_f_set_value', '_f_init_value', 'options',
+    )
+
     def __init__(
             self, *args,
             name=None, default=NotSet, required=False,
@@ -144,6 +148,14 @@ class Attr:
             return self.options[name]
         raise AttributeError(name)
 
+    def __setattr__(self, name, value):
+        if name in self._internals_:
+            super().__setattr__(name, value)
+        elif name in self.options:
+            self.options[name] = value
+        else:
+            raise AttributeError(name)
+
 
 class BoundAttr:
     # Internals are attributes which are not delegated to (owner, attr)
@@ -167,6 +179,10 @@ class BoundAttr:
     def __setattr__(self, name, value):
         if name in self._internals_:
             super().__setattr__(name, value)
+        elif hasattr(self.attr, name):
+            if not isinstance(self.owner, type):
+                raise TypeError('Cannot set attribute {!r} on instance-bound Attr {!r}'.format(name, self.attr.name))
+            setattr(self.attr, name, value)
         else:
             # Do not allow setting Attr attributes through here
             raise AttributeError(name)
@@ -185,7 +201,7 @@ class BoundAttr:
     def value(self, new):
         # Do not override this logic. Add features in Attrs.set
         if isinstance(self.owner, type):
-            raise AttributeError('{} on class is read-only'.format(self.attr.name))
+            raise TypeError('{} on class is read-only'.format(self.attr.name))
         if not self.has_value_initialised:
             # Set a temporary value so that initialiser can safely
             # call value setter and avoid infinite recursion
@@ -272,6 +288,15 @@ class Attrs:
     def set(self, attr_name: str, new):
         attr = self[attr_name]
         attr.value = new
+
+    def _update_(self, *args, **kwargs):
+        if args:
+            assert len(args) == 1
+            assert isinstance(args[0], dict)
+            return self._update_(*args[0])
+
+        for k, v in kwargs.items():
+            self.set(k, v)
 
     def __contains__(self, name):
         return isinstance(getattr(self.owner.__class__, name, None), Attr)

@@ -421,3 +421,77 @@ def test_attrs_tagged():
     assert set(c.attrs._tagged_('safe')) == {c.attrs.x}
     assert set(c.attrs._tagged_('cli')) == {c.attrs.x, c.attrs.y}
     assert set(c.attrs._tagged_('safe', 'cli')) == {c.attrs.x}
+
+
+def test_attrs_update():
+    @container
+    class C:
+        x = Attr()
+        y = Attr()
+
+    c = C()
+    c.attrs._update_(x=1, y=2)
+    assert (c.x, c.y) == (1, 2)
+
+    c.attrs._update_(x=3)
+    assert (c.x, c.y) == (3, 2)
+
+    c.attrs._update_()
+    assert (c.x, c.y) == (3, 2)
+
+    with pytest.raises(TypeError) as exc_info:
+        C.attrs._update_(x=4)
+    assert 'x on class is read-only' in str(exc_info.value)
+
+
+def test_cannot_set_container_cls_attrs():
+    @container
+    class C:
+        x = Attr()
+
+    with pytest.raises(TypeError) as exc_info:
+        C.attrs.set('x', 'No no no')
+    assert 'x on class is read-only' in str(exc_info.value)
+
+
+def test_sets_attr_attribute_on_container_class_bound_attr():
+    @container
+    class C:
+        x = Attr(safe=True)
+
+    assert C.attrs.x.safe is True
+    assert C.attrs.x.options['safe'] is True
+    C.attrs.x.safe = False
+    assert C.attrs.x.safe is False
+    assert C.attrs.x.options['safe'] is False
+
+    assert C.attrs.x.default is None
+    C.attrs.x.default = 0
+    assert C.attrs.x.default == 0
+
+
+def test_cannot_set_attr_attribute_on_container_instance_bound_attr():
+    # Because for a container class C, BoundAttr x, the underlying Attr is shared between all instances of C.
+    @container
+    class C:
+        x = Attr(safe=True)
+
+    c = C()
+
+    with pytest.raises(TypeError) as exc_info:
+        c.attrs.x.safe = False
+    assert "Cannot set attribute 'safe' on instance-bound Attr 'x'" in str(exc_info.value)
+
+
+def test_cannot_set_nonexistent_attr_attribute():
+    @container
+    class C:
+        x = Attr()
+
+    with pytest.raises(AttributeError):
+        C.attrs.x.safe = True
+
+    c = C()
+
+    with pytest.raises(AttributeError):
+        c.attrs.x.safe = True
