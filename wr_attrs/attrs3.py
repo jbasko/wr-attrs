@@ -265,17 +265,30 @@ class Attrs:
             if all(getattr(attr, tag, None) for tag in tags):
                 yield attr
 
+    def _process_(self, payload: dict, apply=True, consume=False, ignore_unknown=False):
+        for k, v in list(payload.items()):
+            if k in self:
+                if apply:
+                    self.set(k, v)
+                if consume:
+                    payload.pop(k)
+            else:
+                if not ignore_unknown:
+                    raise AttributeError(k)
+
     def _update_(self, *args, **kwargs):
         if args:
             assert len(args) == 1
             assert isinstance(args[0], dict)
-            return self._update_(**args[0])
-
-        for k, v in kwargs.items():
-            self.set(k, v)
+            return self._process_(args[0])
+        else:
+            return self._process_(kwargs)
 
     def __contains__(self, name):
-        return isinstance(getattr(self.owner.__class__, name, None), Attr)
+        if isinstance(self.owner, type):
+            return isinstance(getattr(self.owner, name, None), Attr)
+        else:
+            return isinstance(getattr(self.owner.__class__, name, None), Attr)
 
     def __getitem__(self, name):
         if name not in self.bound_attrs:
