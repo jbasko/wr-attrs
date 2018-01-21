@@ -203,9 +203,6 @@ class BoundAttr:
         if isinstance(self.owner, type):
             raise TypeError('{} on class is read-only'.format(self.attr.name))
         if not self.has_value_initialised:
-            # Set a temporary value so that initialiser can safely
-            # call value setter and avoid infinite recursion
-            setattr(self.owner, self.storage_name, TempValue)
             self.init_value(value=new)
 
             # set_value should see the initialised value.
@@ -221,7 +218,14 @@ class BoundAttr:
         return hasattr(self.owner, self.storage_name)
 
     def init_value(self, value=NotSet):
-        # Only to be called to set the value the first time
+        """
+        Only to be called to set the value the first time
+        """
+
+        # Set a temporary value so that initialiser can safely
+        # call value setter and avoid infinite recursion
+        setattr(self.owner, self.storage_name, TempValue)
+
         if value is NotSet:
             value = self.default
         if self._f_init_value:
